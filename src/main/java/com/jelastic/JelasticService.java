@@ -23,7 +23,6 @@ import com.jelastic.model.CreateObjectResponse;
 import com.jelastic.model.DeployResponse;
 import com.jelastic.model.UploadResponse;
 import org.apache.http.NameValuePair;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.CookieStore;
 import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
@@ -50,22 +49,24 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.*;
-import java.util.logging.Logger;
+import java.util.ArrayList;
+import java.util.List;
 
 public class JelasticService {
-    private String shema = "https";
+    private static final String protocol = "https";
     private int port = -1;
-    private Double version = 1.0;
+    private static final Double version = 1.0;
     private long totalSize;
     private int numSt;
     private CookieStore cookieStore = null;
-    private String urlAuthentication = "/" + version + "/users/authentication/rest/signin";
-    private String urlUploader = "/" + version + "/storage/uploader/rest/upload";
-    private String urlCreateObject = "/deploy/createobject";
-    private String urlDeploy = "/deploy/DeployArchive";
+    private static final String urlAuthentication = "/" + version + "/users/authentication/rest/signin";
+    private static final String urlUploader = "/" + version + "/storage/uploader/rest/upload";
+    private static final String urlCreateObject = "/deploy/createobject";
+    private static final String urlDeploy = "/deploy/DeployArchive";
     private Project project;
     private String filename;
     private String dir;
@@ -121,8 +122,8 @@ public class JelasticService {
         return port;
     }
 
-    public String getShema() {
-        return shema;
+    public String getProtocol() {
+        return protocol;
     }
 
     public void setCookieStore(CookieStore cookieStore) {
@@ -152,25 +153,26 @@ public class JelasticService {
     public AuthenticationResponse authentication(String email, String password) {
         AuthenticationResponse authenticationResponse = null;
         try {
-            DefaultHttpClient httpclient = new DefaultHttpClient();
-            httpclient = wrapClient(httpclient);
             List<NameValuePair> qparams = new ArrayList<NameValuePair>();
             qparams.add(new BasicNameValuePair("login", email));
             qparams.add(new BasicNameValuePair("password", password));
-            URI uri = URIUtils.createURI(getShema(), getApiHoster(), getPort(), getUrlAuthentication(), URLEncodedUtils.format(qparams, "UTF-8"), null);
+
+            URI uri = URIUtils.createURI(getProtocol(), getApiHoster(), getPort(), getUrlAuthentication(), null, null);
             project.log("Authentication url : " + uri.toString(), Project.MSG_DEBUG);
-            HttpGet httpGet = new HttpGet(uri);
+
+            HttpPost httpPost = new HttpPost(uri);
+            httpPost.setEntity(new UrlEncodedFormEntity(qparams, "UTF-8"));
+
             ResponseHandler<String> responseHandler = new BasicResponseHandler();
-            String responseBody = httpclient.execute(httpGet, responseHandler);
+
+            DefaultHttpClient httpclient = getHttpClient();
+            String responseBody = httpclient.execute(httpPost, responseHandler);
+
             setCookieStore(httpclient.getCookieStore());
             project.log("Authentication response : " + responseBody, Project.MSG_DEBUG);
-            Gson gson = new GsonBuilder().setVersion(version).create();
-            authenticationResponse = gson.fromJson(responseBody, AuthenticationResponse.class);
-        } catch (URISyntaxException e) {
-            project.log(e.getMessage(), Project.MSG_ERR);
-        } catch (ClientProtocolException e) {
-            project.log(e.getMessage(), Project.MSG_ERR);
-        } catch (IOException e) {
+
+            authenticationResponse = deserialize(responseBody, AuthenticationResponse.class);
+        } catch (URISyntaxException | IOException e) {
             project.log(e.getMessage(), Project.MSG_ERR);
         }
         return authenticationResponse;
@@ -179,13 +181,11 @@ public class JelasticService {
     public UploadResponse upload(AuthenticationResponse authenticationResponse) {
         UploadResponse uploadResponse = null;
         try {
-            DefaultHttpClient httpclient = new DefaultHttpClient();
-            httpclient = wrapClient(httpclient);
-            httpclient.setCookieStore(getCookieStore());
+            DefaultHttpClient httpclient = getHttpClient();
 
-            final File file = new File(getDir() + getFilename());
+            final File file = new File(getDir() + File.separator + getFilename());
             if (!file.exists()) {
-                throw new IllegalArgumentException("First build artifact and try again. Artifact not found .. ");
+                throw new IllegalArgumentException("First build artifact and try again. Artifact not found in location: [" + file.getAbsolutePath() + "]");
             }
 
             CustomMultiPartEntity multipartEntity = new CustomMultiPartEntity(HttpMultipartMode.BROWSER_COMPATIBLE, new CustomMultiPartEntity.ProgressListener() {
@@ -202,31 +202,25 @@ public class JelasticService {
             multipartEntity.addPart("file", new FileBody(file));
             totalSize = multipartEntity.getContentLength();
 
-            URI uri = URIUtils.createURI(getShema(), getApiHoster(), getPort(), getUrlUploader(), null, null);
+            URI uri = URIUtils.createURI(getProtocol(), getApiHoster(), getPort(), getUrlUploader(), null, null);
             project.log("Upload url : " + uri.toString(), Project.MSG_DEBUG);
             HttpPost httpPost = new HttpPost(uri);
             httpPost.setEntity(multipartEntity);
             ResponseHandler<String> responseHandler = new BasicResponseHandler();
             String responseBody = httpclient.execute(httpPost, responseHandler);
             project.log("Upload response : " + responseBody, Project.MSG_DEBUG);
-            Gson gson = new GsonBuilder().setVersion(version).create();
-            uploadResponse = gson.fromJson(responseBody, UploadResponse.class);
-        } catch (URISyntaxException e) {
-            project.log(e.getMessage(), Project.MSG_ERR);
-        } catch (ClientProtocolException e) {
-            project.log(e.getMessage(), Project.MSG_ERR);
-        } catch (IOException e) {
+
+            uploadResponse = deserialize(responseBody, UploadResponse.class);
+        } catch (URISyntaxException | IOException e) {
             project.log(e.getMessage(), Project.MSG_ERR);
         }
         return uploadResponse;
     }
 
-    public CreateObjectResponse createObject(UploadResponse upLoader, AuthenticationResponse authentication) {
+    CreateObjectResponse createObject(UploadResponse upLoader, AuthenticationResponse authentication) {
         CreateObjectResponse createObjectResponse = null;
         try {
-            DefaultHttpClient httpclient = new DefaultHttpClient();
-            httpclient = wrapClient(httpclient);
-            httpclient.setCookieStore(getCookieStore());
+            DefaultHttpClient httpclient = getHttpClient();
             List<NameValuePair> nameValuePairList = new ArrayList<NameValuePair>();
             nameValuePairList.add(new BasicNameValuePair("charset", "UTF-8"));
             nameValuePairList.add(new BasicNameValuePair("session", authentication.getSession()));
@@ -240,31 +234,25 @@ public class JelasticService {
                 project.log(nameValuePair.getName() + " : " + nameValuePair.getValue(), Project.MSG_DEBUG);
             }
 
-            URI uri = URIUtils.createURI(getShema(), getApiHoster(), getPort(), getUrlCreateObject(), null, null);
+            URI uri = URIUtils.createURI(getProtocol(), getApiHoster(), getPort(), getUrlCreateObject(), null, null);
             project.log("CreateObject url : " + uri.toString(), Project.MSG_DEBUG);
             HttpPost httpPost = new HttpPost(uri);
             httpPost.setEntity(entity);
             ResponseHandler<String> responseHandler = new BasicResponseHandler();
             String responseBody = httpclient.execute(httpPost, responseHandler);
             project.log("CreateObject response : " + responseBody, Project.MSG_DEBUG);
-            Gson gson = new GsonBuilder().setVersion(version).create();
-            createObjectResponse = gson.fromJson(responseBody, CreateObjectResponse.class);
-        } catch (URISyntaxException e) {
-            project.log(e.getMessage(), Project.MSG_ERR);
-        } catch (ClientProtocolException e) {
-            project.log(e.getMessage(), Project.MSG_ERR);
-        } catch (IOException e) {
+
+            createObjectResponse = deserialize(responseBody, CreateObjectResponse.class);
+        } catch (URISyntaxException | IOException e) {
             project.log(e.getMessage(), Project.MSG_ERR);
         }
         return createObjectResponse;
     }
 
-    public DeployResponse deploy(AuthenticationResponse authentication, UploadResponse upLoader) {
+    DeployResponse deploy(AuthenticationResponse authentication, UploadResponse upLoader) {
         DeployResponse deployResponse = null;
         try {
-            DefaultHttpClient httpclient = new DefaultHttpClient();
-            httpclient = wrapClient(httpclient);
-            httpclient.setCookieStore(getCookieStore());
+            DefaultHttpClient httpclient = getHttpClient();
             List<NameValuePair> qparams = new ArrayList<NameValuePair>();
             qparams.add(new BasicNameValuePair("charset", "UTF-8"));
             qparams.add(new BasicNameValuePair("session", authentication.getSession()));
@@ -277,26 +265,22 @@ public class JelasticService {
                 project.log(nameValuePair.getName() + " : " + nameValuePair.getValue(), Project.MSG_DEBUG);
             }
 
-            URI uri = URIUtils.createURI(getShema(), getApiHoster(), getPort(), getUrlDeploy(), URLEncodedUtils.format(qparams, "UTF-8"), null);
+            URI uri = URIUtils.createURI(getProtocol(), getApiHoster(), getPort(), getUrlDeploy(), URLEncodedUtils.format(qparams, "UTF-8"), null);
             project.log("Deploy url : " + uri.toString(), Project.MSG_DEBUG);
             HttpGet httpPost = new HttpGet(uri);
             ResponseHandler<String> responseHandler = new BasicResponseHandler();
             String responseBody = httpclient.execute(httpPost, responseHandler);
             project.log("Deploy response : " + responseBody, Project.MSG_DEBUG);
-            Gson gson = new GsonBuilder().setVersion(version).create();
-            deployResponse = gson.fromJson(responseBody, DeployResponse.class);
-        } catch (URISyntaxException e) {
-            project.log(e.getMessage(), Project.MSG_ERR);
-        } catch (ClientProtocolException e) {
-            project.log(e.getMessage(), Project.MSG_ERR);
-        } catch (IOException e) {
+
+            deployResponse = deserialize(responseBody, DeployResponse.class);
+        } catch (URISyntaxException | IOException e) {
             project.log(e.getMessage(), Project.MSG_ERR);
         }
         return deployResponse;
     }
 
 
-    public static DefaultHttpClient wrapClient(DefaultHttpClient base) {
+    private static DefaultHttpClient wrapClient(DefaultHttpClient base) {
         try {
             SSLContext ctx = SSLContext.getInstance("TLS");
             X509TrustManager tm = new X509TrustManager() {
@@ -317,8 +301,22 @@ public class JelasticService {
             SchemeRegistry sr = ccm.getSchemeRegistry();
             sr.register(new Scheme("https", ssf, 443));
             return new DefaultHttpClient(ccm, base.getParams());
-        } catch (Exception e) {
+        } catch (NoSuchAlgorithmException | KeyManagementException e) {
             return null;
         }
+    }
+
+    private DefaultHttpClient getHttpClient() {
+        DefaultHttpClient httpclient = new DefaultHttpClient();
+        httpclient = wrapClient(httpclient);
+        httpclient.setCookieStore(getCookieStore());
+
+        return httpclient;
+    }
+
+
+    private <T> T deserialize(String responseBody, Class<T> clazz) {
+        Gson gson = new GsonBuilder().setVersion(version).create();
+        return (T) gson.fromJson(responseBody, clazz);
     }
 }

@@ -16,11 +16,9 @@
 
 package com.jelastic.model;
 
-public class CreateObjectResponse {
+public class CreateObjectResponse extends Response {
     private Response response;
-    private int result;
     private String source;
-    private String error;
     private DebugResponse debug;
 
     public Response getResponse() {
@@ -31,28 +29,12 @@ public class CreateObjectResponse {
         this.response = response;
     }
 
-    public int getResult() {
-        return result;
-    }
-
-    public void setResult(int result) {
-        this.result = result;
-    }
-
     public String getSource() {
         return source;
     }
 
     public void setSource(String source) {
         this.source = source;
-    }
-
-    public String getError() {
-        return error;
-    }
-
-    public void setError(String error) {
-        this.error = error;
     }
 
     public DebugResponse getDebug() {
@@ -63,9 +45,8 @@ public class CreateObjectResponse {
         this.debug = debug;
     }
 
-    public static class Response {
+    public static class Response extends com.jelastic.model.Response {
         private int id;
-        private int result;
         private String source;
         private ObjectResponse object;
 
@@ -75,14 +56,6 @@ public class CreateObjectResponse {
 
         public void setId(int id) {
             this.id = id;
-        }
-
-        public int getResult() {
-            return result;
-        }
-
-        public void setResult(int result) {
-            this.result = result;
         }
 
         public String getSource() {

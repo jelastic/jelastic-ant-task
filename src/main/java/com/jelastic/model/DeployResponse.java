@@ -16,31 +16,13 @@
 
 package com.jelastic.model;
 
-public class DeployResponse {
-    private int result;
+public class DeployResponse extends Response{
     private String source;
-    private String error;
     private DebugResponse debug;
     private Response response;
 
-    public int getResult() {
-        return result;
-    }
-
-    public void setResult(int result) {
-        this.result = result;
-    }
-
     public String getSource() {
         return source;
-    }
-
-    public String getError() {
-        return error;
-    }
-
-    public void setError(String error) {
-        this.error = error;
     }
 
     public void setSource(String source) {
@@ -63,19 +45,9 @@ public class DeployResponse {
         this.response = response;
     }
 
-    public static class Response{
-        private int result;
+    public static class Response extends com.jelastic.model.Response {
         private String source;
-        private String error;
         private Responses[] responses;
-
-        public int getResult() {
-            return result;
-        }
-
-        public void setResult(int result) {
-            this.result = result;
-        }
 
         public String getSource() {
             return source;
@@ -83,14 +55,6 @@ public class DeployResponse {
 
         public void setSource(String source) {
             this.source = source;
-        }
-
-        public String getError() {
-            return error;
-        }
-
-        public void setError(String error) {
-            this.error = error;
         }
 
         public Responses[] getResponses() {

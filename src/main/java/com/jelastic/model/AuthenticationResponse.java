@@ -16,15 +16,13 @@
 
 package com.jelastic.model;
 
-public class AuthenticationResponse {
+public class AuthenticationResponse extends Response{
     private int uid;
-    private int result;
     private String source;
     private String session;
     private String email;
     private String name;
     
-    private String error;
     private DebugResponse debug;
 
     public int getUid() {
@@ -35,13 +33,6 @@ public class AuthenticationResponse {
         this.uid = uid;
     }
 
-    public int getResult() {
-        return result;
-    }
-
-    public void setResult(int result) {
-        this.result = result;
-    }
 
     public String getSource() {
         return source;
@@ -73,14 +64,6 @@ public class AuthenticationResponse {
 
     public void setName(String name) {
         this.name = name;
-    }
-
-    public String getError() {
-        return error;
-    }
-
-    public void setError(String error) {
-        this.error = error;
     }
 
     public DebugResponse getDebug() {

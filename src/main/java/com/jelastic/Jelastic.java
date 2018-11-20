@@ -24,14 +24,14 @@ import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.Task;
 
 public class Jelastic extends Task {
-    String email;
-    String password;
-    String context;
-    String environment;
-    String apihoster;
+    private String email;
+    private String password;
+    private String context;
+    private String environment;
+    private String apihoster;
 
-    public String dir;
-    public String fileName;
+    private String dir;
+    private String fileName;
 
 
     public String getApihoster() {
@@ -92,49 +92,59 @@ public class Jelastic extends Task {
 
     @Override
     public void execute() throws BuildException {
-        JelasticService js = new JelasticService(getProject());
-        js.setDir(getDir());
-        js.setFilename(getFileName());
-        js.setApiHoster(getApihoster());
-        js.setEnvironment(getEnvironment());
-        js.setContext(getContext());
+        JelasticService jelasticService = new JelasticService(getProject());
+        jelasticService.setDir(getDir());
+        jelasticService.setFilename(getFileName());
+        jelasticService.setApiHoster(getApihoster());
+        jelasticService.setEnvironment(getEnvironment());
+        jelasticService.setContext(getContext());
 
-        AuthenticationResponse authenticationResponse = js.authentication(getEmail(), getPassword());
-        if (authenticationResponse.getResult() == 0) {
-            log("------------------------------------------------------------------------");
-            log("   Authentication : SUCCESS");
-            log("          Session : " + authenticationResponse.getSession());
-            log("              Uid : " + authenticationResponse.getUid());
-            log("------------------------------------------------------------------------");
-            UploadResponse uploadResponse = js.upload(authenticationResponse);
-            if (uploadResponse.getResult() == 0) {
-                log("      File UpLoad : SUCCESS");
-                log("         File URL : " + uploadResponse.getFile());
-                log("        File size : " + uploadResponse.getSize());
-                log("------------------------------------------------------------------------");
-                CreateObjectResponse createObject = js.createObject(uploadResponse,authenticationResponse);
-                if (createObject.getResult() == 0) {
-                    log("File registration : SUCCESS");
-                    log("  Registration ID : " + createObject.getResponse().getObject().getId());
-                    log("     Developer ID : " + createObject.getResponse().getObject().getDeveloper());
-                    log("------------------------------------------------------------------------");
-                    DeployResponse deploy = js.deploy(authenticationResponse,uploadResponse);
-                    if (deploy.getResponse().getResult() == 0) {
-                        log("      Deploy file : SUCCESS");
-                        log("       Deploy log :");
-                        log(deploy.getResponse().getResponses()[0].getOut());
-                    } else {
-                        log("          Deploy : FAILED");
-                        log("           Error : " + deploy.getResponse().getError());
-                    }
-                }
-            } else {
-                log("File upload : FAILED");
-                log("      Error : " + uploadResponse.getError());
-            }
-        } else {
+        AuthenticationResponse authenticationResponse = jelasticService.authentication(getEmail(), getPassword());
+        if (authenticationResponse.isNotOK()) {
             log("Authentication : FAILED");
             log("         Error : " + authenticationResponse.getError());
+
+            return;
         }
+
+        log("------------------------------------------------------------------------");
+        log("   Authentication : SUCCESS");
+        log("          Session : " + authenticationResponse.getSession());
+        log("              Uid : " + authenticationResponse.getUid());
+        log("------------------------------------------------------------------------");
+
+        UploadResponse uploadResponse = jelasticService.upload(authenticationResponse);
+        if (uploadResponse.isNotOK()) {
+            log("File upload : FAILED");
+            log("      Error : " + uploadResponse.getError());
+            return;
+        }
+
+        log("      File UpLoad : SUCCESS");
+        log("         File URL : " + uploadResponse.getFile());
+        log("        File size : " + uploadResponse.getSize());
+        log("------------------------------------------------------------------------");
+
+        CreateObjectResponse createObject = jelasticService.createObject(uploadResponse, authenticationResponse);
+        if (createObject.isNotOK()) {
+            return;
+        }
+
+        log("File registration : SUCCESS");
+        log("  Registration ID : " + createObject.getResponse().getObject().getId());
+        log("     Developer ID : " + createObject.getResponse().getObject().getDeveloper());
+        log("------------------------------------------------------------------------");
+
+        DeployResponse deploy = jelasticService.deploy(authenticationResponse, uploadResponse);
+        if (deploy.getResponse().isNotOK()) {
+            log("          Deploy : FAILED");
+            log("           Error : " + deploy.getResponse().getError());
+            return;
+        }
+
+        log("      Deploy file : SUCCESS");
+        log("       Deploy log :");
+        log(deploy.getResponse().getResponses()[0].getOut());
     }
 }
+

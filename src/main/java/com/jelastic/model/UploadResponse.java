@@ -16,21 +16,11 @@
 
 package com.jelastic.model;
 
-public class UploadResponse {
-    private int result;
+public class UploadResponse extends Response{
     private String file;
     private String name;
     private RequestResponse request;
     private int size;
-    private String error;
-
-    public int getResult() {
-        return result;
-    }
-
-    public void setResult(int result) {
-        this.result = result;
-    }
 
     public String getFile() {
         return file;
@@ -64,11 +54,4 @@ public class UploadResponse {
         this.size = size;
     }
 
-    public String getError() {
-        return error;
-    }
-
-    public void setError(String error) {
-        this.error = error;
-    }
 }
